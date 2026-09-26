@@ -1,149 +1,145 @@
 from random import shuffle
 
-burst_boader = 21   #バーストのボーダーライン
+burst_border = 21   #バーストのボーダーライン
 ACE_BONUS = 11  #Aを11として運用するボーダーライン
 ELEVEN_ACE = 10 #Aを11にする変数
 number_of_cards_remaining = 10  #山札を切りなおすボーダーライン
 
-def decks_shuffle():
-    suits = ["♠", "♥", "♦", "♣"]
-    ranks = [str(i) for i in range(2, 11)] + ['A', 'J', 'Q', 'K']
-    decks = [f"{suit}{rank}" for suit in suits for rank in ranks]
-    shuffle(decks)
-    return decks
-
-def get_hand_sum(card):
-    rank = card[1:]
-    if rank in ['J', 'Q', 'K']:
-        return 10
-    elif rank == 'A':
-        return 1
-    else:
-        return int(rank)
-
-def ACE_check(hands, total, A):
-    if any(card[1:] == 'A' for card in hands) and total <= ACE_BONUS:
-        total += ELEVEN_ACE
-        A = True
-    elif total > burst_boader and A:
-        total -= ELEVEN_ACE
-        A = False
-    return total, A
-
-def calculation(hands, A):
-    total = sum(get_hand_sum(card) for card in hands)
-    return ACE_check(hands, total, A)
+class DeckManager:
+    def __init__(self):
+        self.cards = []
+    
+    def shuffle_if_needed(self):
+        if len(self.cards) <= number_of_cards_remaining:
+            suits = ["♠", "♥", "♦", "♣"]
+            ranks = [str(i) for i in range(2, 11)] + ['A', 'J', 'Q', 'K']
+            self.cards = [f"{suit}{rank}" for suit in suits for rank in ranks]
+            shuffle(self.cards)
+            print("Shuffle Compleated")
+    
+    def draw(self):
+        return self.cards.pop(0)
 
 
-def put(hands, A, deck):
-    card = deck.pop(0)
-    hands.append(card)
-    total, A = calculation(hands, A)
-    return hands, total, A, deck
+class HandManager:
+    def __init__(self):
+        self.hands = []
+        self.has_A = False
+    
+    def total(self):
+        base_total = sum(self.get_card_value(card) for card in self.hands)
 
-def win_or_lose(player_total, dealer_total):
-    if player_total == dealer_total:
-        print("Draw")
-        return 0
-    elif (player_total > dealer_total and (player_total <= burst_boader and dealer_total <= burst_boader)) or (player_total <= burst_boader and dealer_total > burst_boader):
-        print("You win!!")
-        return 1
-    else:
-        print("You lose...")
-        return -1
+        self.has_A = any(card[1:] == 'A' for card in self.hands)
+        if self.has_A and base_total <= ACE_BONUS:
+            base_total += ELEVEN_ACE
 
-def check_chip(win_or_lose, bet):
-    if win_or_lose == 1:
-        return bet * 2
-    elif win_or_lose == 0:
-        return bet
-    else:
-        return 0
+        return base_total
 
-chips = 5000
-deck = []
+    def get_card_value(self, card):
+        rank = card[1:]
+        if rank == 'A':
+            return 1
+        elif rank in ['J', 'Q', 'K']:
+            return 10
+        else:
+            return int(rank)
+
+    def add_cards(self, card):
+        self.hands.append(card)
+
+
+class PlayerManager:
+    def __init__(self):
+        self.chips = 5000
+    
+    def check_chip(self, win_or_lose, bet):
+        if win_or_lose == 1:
+            return bet * 2
+        elif win_or_lose == 0:
+            return bet
+        else:
+            return 0
+    
+    def win_or_lose(self, player_total, dealer_total):
+        if player_total == dealer_total:
+            print("Draw")
+            return 0
+        elif (player_total > dealer_total and (player_total <= burst_border and dealer_total <= burst_border)) or (player_total <= burst_border and dealer_total > burst_border):
+            print("You win!!")
+            return 1
+        else:
+            print("You lose...")
+            return -1
+
+
+Player = PlayerManager()
+Deck = DeckManager()
 
 discribute = 2  #カードを配る回数
-blackjack = 21
-dealer_stop = 20    #ディーラーがプレイする手札合計の上限(公式ルールは17らしい。どんでん返しがあるほうがおもろいやん？)
+blackjack = 21  #バーストのボーダーライン
+dealer_stop = 20    #ディーラーがプレイする手札合計の上限(公式ルールは17)
 
-player_total = dealer_total = 0
-while chips >= 0:
-    print()
-    #山札シャッフル
-    if len(deck) <= number_of_cards_remaining:
-        deck = decks_shuffle()
-        print("Shuffle completed")
+while Player.chips > 0:
+    Deck.shuffle_if_needed()
 
-    player_hands, dealer_hands = [], []
-    player_A = dealer_A = False
+    player_hands = HandManager()
+    dealer_hands = HandManager()
 
-    #カード配り
     for _ in range(discribute):
-        player_hands.append(deck.pop(0))
-        dealer_hands.append(deck.pop(0))
+        player_hands.add_cards(Deck.draw())
+        dealer_hands.add_cards(Deck.draw())
 
-    print("Your chips:", chips)
+    print("Your chips:", Player.chips)
     bet = int(input("How many chips do you bet?\n 0: end\n"))
     bet = abs(bet)
     if bet == 0:
         break
-    chips -= bet
+    Player.chips -= bet
 
-    #手札の合計算出。Aは11として運用し、あることをマーク。
     print("------------------------")
-    player_total, player_A = calculation(player_hands, player_A)
-    dealer_total, dealer_A = calculation(dealer_hands, dealer_A)
-    print(f"your hand is {', '.join(player_hands)}\n total: {player_total}")
-    print(f"dealer's hand is {dealer_hands[0]}, ?")
+    print(f"your hand is {', '.join(player_hands.hands)}\n total: {player_hands.total()}")
+    print(f"dealer's hand is {dealer_hands.hands[0]}, ?")
     print("------------------------")
 
-    #ブラックジャック判定
-    Blackjack = False
-    if player_total == blackjack or dealer_total == blackjack:
-        Blackjack = True
+    isBlackjack = (player_hands.total() == blackjack or dealer_hands.total() == blackjack)
 
     #プレイヤーのターン
-    while player_total < burst_boader and not Blackjack:
-
+    while player_hands.total() < burst_border and not isBlackjack:
         command = input("put(1) or stand(0)?: ")
-        if command == "put" or command == '1':
-            player_hands, player_total, player_A, deck = put(player_hands, False, deck)
-            print("Now, your hands:", ', '.join(player_hands))
-            print("Your total:", player_total)
-        elif command == "stand" or command == '0':
+        if command in ["put", "1"]:
+            player_hands.add_cards(Deck.draw())
+            print("Now, your hands:", ', '.join(player_hands.hands))
+            print("Your total:", player_hands.total())
+        elif command in ["stand", "0"]:
             break
         else:
             print(f"This command is not supported: {command}")
     
-    #ディーラーのターン
-    player_burst = player_total > burst_boader
-    while dealer_total < player_total and dealer_total < burst_boader and not player_burst and not Blackjack:
-        dealer_hands, dealer_total, dealer_A, deck = put(dealer_hands, False, deck)
+    player_burst = player_hands.total() > burst_border
+    while dealer_hands.total() < player_hands.total() and dealer_hands.total() < burst_border and not player_burst and not isBlackjack:
+        dealer_hands.add_cards(Deck.draw())
     
-    #集計
     print("-----------------------------")
-    chips += check_chip(win_or_lose(player_total, dealer_total), bet)
-
+    Player.chips += Player.check_chip(Player.win_or_lose(player_hands.total(), dealer_hands.total()), bet)
     print("\nplayer")
-    if player_total == blackjack and Blackjack:
-        print(f"{', '.join(player_hands)}, total: {player_total}, Blackjack!!")
+    if player_hands.total() == blackjack and isBlackjack:
+        print(f"{', '.join(player_hands.hands)}, total: {player_hands.total()}, Blackjack!!")
     elif player_burst:
-        print(f"{', '.join(player_hands)}, total: {player_total}, Burst!!")
+        print(f"{', '.join(player_hands.hands)}, total: {player_hands.total()}, Burst!!")
     else:
-        print(f"{', '.join(player_hands)}, total: {player_total}")
+        print(f"{', '.join(player_hands.hands)}, total: {player_hands.total()}")
     print("dealer")
-    if dealer_total == blackjack and Blackjack:
-        print(f"{', '.join(dealer_hands)}, total: {dealer_total}, Blackjack!!")
-    elif dealer_total > burst_boader:
-        print(f"{', '.join(dealer_hands)}, total: {dealer_total}, Burst!!")
+    if dealer_hands.total() == blackjack and isBlackjack:
+        print(f"{', '.join(dealer_hands.hands)}, total: {dealer_hands.total()}, Blackjack!!")
+    elif dealer_hands.total() > burst_border:
+        print(f"{', '.join(dealer_hands.hands)}, total: {dealer_hands.total()}, Burst!!")
     else:
-        print(f"{', '.join(dealer_hands)}, total: {dealer_total}")
+        print(f"{', '.join(dealer_hands.hands)}, total: {dealer_hands.total()}")
     print("-----------------------------")
 
-if chips < 0:
+if Player.chips <= 0:
     print("Game over")
     print("You have no chips.")
 else:
     print("Final result:")
-    print(f"chips: {chips}")
+    print(f"chips: {Player.chips}")
